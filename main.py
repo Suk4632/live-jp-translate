@@ -38,6 +38,11 @@ def build_parser():
                    help="원본 언어 코드 (일본어: ja)")
     p.add_argument("--target", type=str, default="ko",
                    help="번역할 언어 코드 (한국어: ko)")
+    p.add_argument("--engine", type=str, default="google",
+                   choices=["google", "deepl"],
+                   help="번역 엔진. deepl이 더 자연스러움 (--deepl-key 필요)")
+    p.add_argument("--deepl-key", type=str, default=None,
+                   help="DeepL API 무료 키 (README '번역 품질 높이기' 참고)")
     p.add_argument("--no-overlay", action="store_true",
                    help="자막창 없이 콘솔(검은 창)에만 출력")
     p.add_argument("--no-japanese", action="store_true",

@@ -104,7 +104,7 @@ class AudioCapture(threading.Thread):
 
     def __init__(self, device, segment_queue, stop_event,
                  vad_threshold=0.01, silence_sec=0.45, min_speech_sec=0.3,
-                 max_segment_sec=6.0, pre_roll_sec=0.3, partial_interval=1.0):
+                 max_segment_sec=8.0, pre_roll_sec=0.3, partial_interval=1.0):
         super().__init__(daemon=True, name="audio-capture")
         self.device = device
         self.segment_queue = segment_queue

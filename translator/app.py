@@ -58,8 +58,10 @@ def run(args):
     print(f"      완료! (실행 장치: {recognizer.device.upper()})")
 
     # 2) 번역기 준비
-    print(f"[2/3] 번역기 준비 중... ({args.source} → {args.target})")
-    translator = Translator(source=args.source, target=args.target)
+    translator = Translator(source=args.source, target=args.target,
+                            engine=args.engine, deepl_key=args.deepl_key)
+    print(f"[2/3] 번역기 준비 완료 ({args.source} → {args.target}, "
+          f"엔진: {translator.engine})")
 
     # 3) 오디오 장치
     device = find_device(args.device, use_mic=args.mic)
@@ -88,7 +90,8 @@ def run(args):
                 if stop_event.is_set():
                     break
                 try:
-                    text = recognizer.transcribe(audio)
+                    # 확정(final) 자막은 정밀 모드로 한 번 더 정확하게 인식한다
+                    text = recognizer.transcribe(audio, accurate=(kind == "final"))
                 except Exception as e:
                     print(f"(음성 인식 오류: {e})")
                     continue

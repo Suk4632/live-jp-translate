@@ -63,13 +63,17 @@ class SpeechRecognizer:
         for _ in segments:
             pass
 
-    def transcribe(self, audio):
-        """16kHz float32 오디오를 텍스트로 변환한다. 인식 실패 시 빈 문자열."""
+    def transcribe(self, audio, accurate=False):
+        """16kHz float32 오디오를 텍스트로 변환한다. 인식 실패 시 빈 문자열.
+
+        accurate=True면 정밀 모드(beam 5) — 확정 자막용으로 더 정확하게 인식.
+        False면 빠른 모드(beam 1) — 말하는 중 부분 자막용.
+        """
         audio = np.asarray(audio, dtype=np.float32)
         segments, _info = self.model.transcribe(
             audio,
             language=self.source_lang,
-            beam_size=1,                      # 속도 우선 (실시간용)
+            beam_size=5 if accurate else 1,
             vad_filter=True,                  # 무음 구간 자동 제거
             condition_on_previous_text=False, # 환각(반복) 방지
             without_timestamps=True,          # 타임스탬프 생략 → 더 빠름
