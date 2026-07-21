@@ -19,7 +19,7 @@ if errorlevel 1 (
 
 echo 필요한 라이브러리를 설치합니다. 몇 분 걸릴 수 있어요...
 echo.
-%PY% -m pip install -r requirements.txt
+%PY% -m pip install -U -r requirements.txt
 if errorlevel 1 (
     echo.
     echo [오류] 설치에 실패했습니다. 인터넷 연결을 확인하고 다시 실행해 보세요.
