@@ -5,19 +5,23 @@ import os
 import numpy as np
 
 # Whisper가 무음/음악 구간에서 자주 지어내는(환각) 문장들 — 자막에서 걸러낸다
+# (뒤쪽 문장부호를 뗀 형태로 비교한다)
 _HALLUCINATIONS = {
     "ご視聴ありがとうございました",
-    "ご視聴ありがとうございました。",
     "ご視聴ありがとうございます",
-    "ご視聴ありがとうございます。",
+    "ご覧いただきありがとうございます",
     "チャンネル登録お願いします",
-    "チャンネル登録お願いします。",
+    "チャンネル登録よろしくお願いします",
     "おやすみなさい",
     "字幕視聴ありがとうございました",
     "本日はご視聴いただきありがとうございます",
 }
 
 _JUNK_CHARS = set("♪♫♬・.。、,!?!?~〜ー- 　")
+
+
+def _is_hallucination(text):
+    return text.rstrip("。.!!??  　") in _HALLUCINATIONS
 
 
 class SpeechRecognizer:
@@ -76,11 +80,11 @@ class SpeechRecognizer:
             if seg.no_speech_prob > 0.8:
                 continue
             t = seg.text.strip()
-            if t:
+            if t and not _is_hallucination(t):
                 texts.append(t)
 
         text = "".join(texts).strip()
-        if not text or text in _HALLUCINATIONS:
+        if not text or _is_hallucination(text):
             return ""
         if all(ch in _JUNK_CHARS for ch in text):
             return ""

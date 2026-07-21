@@ -63,7 +63,7 @@ class SubtitleOverlay:
 
         top = tk.Frame(frame, bg="#101014")
         top.pack(fill="x")
-        tk.Label(top, text="🎙 일본어 실시간 번역", bg="#101014", fg="#5a5f6e",
+        tk.Label(top, text="● 일본어 실시간 번역", bg="#101014", fg="#5a5f6e",
                  font=(family, max(8, int(9 * font_scale)))).pack(side="left")
         close = tk.Label(top, text="✕", bg="#101014", fg="#8a8f9e",
                          font=(family, max(9, int(10 * font_scale))), cursor="hand2")
@@ -96,6 +96,12 @@ class SubtitleOverlay:
         self._user_moved = False
         self._screen_w = screen_w
         self._screen_h = screen_h
+
+        # ESC 키가 바로 먹히도록 창에 키보드 포커스를 준다
+        try:
+            self.root.focus_force()
+        except tk.TclError:
+            pass
 
     def _drag_start(self, event):
         self._drag_offset = (event.x_root - self.root.winfo_x(),

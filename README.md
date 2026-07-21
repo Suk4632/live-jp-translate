@@ -57,6 +57,8 @@
 | `python main.py --list-devices` | 오디오 장치 목록 확인 |
 | `python main.py --device "이름"` | 특정 오디오 장치 지정 |
 
+> 💡 `python` 명령이 안 먹히면 `py` 로 바꿔서 실행하세요 (예: `py main.py --model tiny`).
+
 모델 크기 가이드 (`--model`):
 
 | 모델 | 속도 | 정확도 | 추천 |

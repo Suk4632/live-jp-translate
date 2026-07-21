@@ -120,9 +120,13 @@ def run(args):
                     print(f"[{ts}] {ja}")
                     print(f"         → {ko}")
                     if log_file:
-                        log_file.write(f"[{ts}] {ja}\n[{ts}] → {ko}\n")
-                        log_file.flush()
-                ui_q.put((ja, ko, not is_final))
+                        try:
+                            log_file.write(f"[{ts}] {ja}\n[{ts}] → {ko}\n")
+                            log_file.flush()
+                        except ValueError:  # 종료 직후 파일이 먼저 닫힌 경우
+                            pass
+                if not args.no_overlay:
+                    ui_q.put((ja, ko, not is_final))
 
     asr_thread = threading.Thread(target=asr_loop, daemon=True, name="asr")
     translate_thread = threading.Thread(target=translate_loop, daemon=True,

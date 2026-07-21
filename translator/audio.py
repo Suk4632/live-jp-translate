@@ -155,7 +155,9 @@ class AudioCapture(threading.Thread):
         seq = 0             # 문장(세그먼트) 번호
 
         try:
-            with self.device.recorder(samplerate=CAPTURE_RATE, channels=1) as rec:
+            # channels를 지정하지 않고 장치 기본(보통 스테레오)으로 받는다.
+            # (Windows 루프백에서 channels=1 지정 시 소리가 깨지는 soundcard 버그 회피)
+            with self.device.recorder(samplerate=CAPTURE_RATE) as rec:
                 while not self.stop_event.is_set():
                     data = rec.record(numframes=numframes)
                     mono = data.mean(axis=1) if data.ndim > 1 else data
