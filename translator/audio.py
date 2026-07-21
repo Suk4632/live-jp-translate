@@ -2,6 +2,11 @@
 
 유튜브 라이브 소리를 잡으려면 "스피커 루프백"을 사용한다.
 (컴퓨터에서 재생되는 소리를 그대로 녹음하는 기능 — Windows는 기본 지원)
+
+큐에 넣는 항목 형식: (kind, seq, 오디오배열)
+  kind = "partial" : 아직 말하는 중 — 지금까지 모인 소리 (자막 즉시 갱신용)
+  kind = "final"   : 문장이 끝남 — 확정된 구간
+  seq  = 문장(세그먼트) 번호. 같은 문장의 partial과 final은 같은 번호.
 """
 
 import threading
@@ -89,15 +94,17 @@ def _resample(block, src_rate=CAPTURE_RATE, dst_rate=TARGET_RATE):
 
 
 class AudioCapture(threading.Thread):
-    """오디오를 계속 녹음하면서, 말소리 구간을 찾아 segment_queue로 보낸다.
+    """오디오를 계속 녹음하면서 말소리 구간을 segment_queue로 보낸다.
 
-    무음이 이어지면 문장이 끝난 것으로 보고 그때까지 모은 소리를 하나의
-    구간(세그먼트)으로 잘라 큐에 넣는다. 너무 길어지면 중간에 강제로 자른다.
+    - 말하는 도중에도 partial_interval초마다 지금까지의 소리를 "partial"로 보내
+      자막이 실시간으로 갱신되게 한다.
+    - 무음이 이어지면 문장이 끝난 것으로 보고 "final"을 보낸다.
+    - 말이 너무 길면 max_segment_sec에서 강제로 잘라 "final"을 보낸다.
     """
 
     def __init__(self, device, segment_queue, stop_event,
-                 vad_threshold=0.01, silence_sec=0.6, min_speech_sec=0.4,
-                 max_segment_sec=8.0, pre_roll_sec=0.3):
+                 vad_threshold=0.01, silence_sec=0.45, min_speech_sec=0.3,
+                 max_segment_sec=6.0, pre_roll_sec=0.3, partial_interval=1.0):
         super().__init__(daemon=True, name="audio-capture")
         self.device = device
         self.segment_queue = segment_queue
@@ -107,29 +114,35 @@ class AudioCapture(threading.Thread):
         self.min_speech_blocks = max(1, int(min_speech_sec / BLOCK_SECONDS))
         self.max_segment_blocks = max(2, int(max_segment_sec / BLOCK_SECONDS))
         self.pre_roll_blocks = max(1, int(pre_roll_sec / BLOCK_SECONDS))
+        self.partial_blocks = (max(1, int(partial_interval / BLOCK_SECONDS))
+                               if partial_interval > 0 else 0)
         self.error = None
         self._noise_floor = 0.005  # 배경 소음 크기 추정치 (계속 갱신됨)
 
     def _effective_threshold(self):
         return max(self.vad_threshold, self._noise_floor * 3.0)
 
-    def _emit(self, blocks, speech_blocks):
-        """모은 블록을 하나의 세그먼트로 만들어 큐에 넣는다."""
-        if speech_blocks < self.min_speech_blocks:
-            return
+    def _put_final(self, blocks, seq):
         segment = np.concatenate(blocks)
         try:
-            self.segment_queue.put_nowait(segment)
+            self.segment_queue.put_nowait(("final", seq, segment))
         except queue.Full:
-            # 인식이 밀리면 가장 오래된 세그먼트를 버리고 실시간을 유지한다
+            # 인식이 밀리면 가장 오래된 항목을 버리고 실시간을 유지한다
             try:
                 self.segment_queue.get_nowait()
             except queue.Empty:
                 pass
             try:
-                self.segment_queue.put_nowait(segment)
+                self.segment_queue.put_nowait(("final", seq, segment))
             except queue.Full:
                 pass
+
+    def _put_partial(self, blocks, seq):
+        # partial은 어차피 곧 다음 것이 오므로, 큐가 차 있으면 그냥 버린다
+        try:
+            self.segment_queue.put_nowait(("partial", seq, np.concatenate(blocks)))
+        except queue.Full:
+            pass
 
     def run(self):
         numframes = int(CAPTURE_RATE * BLOCK_SECONDS)
@@ -137,7 +150,9 @@ class AudioCapture(threading.Thread):
         seg_blocks = []     # 현재 세그먼트에 모인 블록들
         speech_count = 0    # 세그먼트 안에서 실제 말소리였던 블록 수
         silence_count = 0   # 연속 무음 블록 수
+        since_partial = 0   # 마지막 partial 전송 후 지난 블록 수
         in_speech = False
+        seq = 0             # 문장(세그먼트) 번호
 
         try:
             with self.device.recorder(samplerate=CAPTURE_RATE, channels=1) as rec:
@@ -159,6 +174,7 @@ class AudioCapture(threading.Thread):
                             seg_blocks = list(pre_roll) + [block]
                             speech_count = 1
                             silence_count = 0
+                            since_partial = 0
                         else:
                             pre_roll.append(block)
                             if len(pre_roll) > self.pre_roll_blocks:
@@ -167,6 +183,7 @@ class AudioCapture(threading.Thread):
 
                     # 말하는 중
                     seg_blocks.append(block)
+                    since_partial += 1
                     if is_speech:
                         speech_count += 1
                         silence_count = 0
@@ -174,19 +191,30 @@ class AudioCapture(threading.Thread):
                         silence_count += 1
 
                     if silence_count >= self.silence_blocks:
-                        # 문장이 끝났다 → 세그먼트 확정
-                        self._emit(seg_blocks, speech_count)
+                        # 문장이 끝났다 → 확정(final) 전송
+                        if speech_count >= self.min_speech_blocks:
+                            self._put_final(seg_blocks, seq)
+                            seq += 1
                         pre_roll = seg_blocks[-self.pre_roll_blocks:]
                         seg_blocks = []
                         speech_count = 0
                         silence_count = 0
+                        since_partial = 0
                         in_speech = False
                     elif len(seg_blocks) >= self.max_segment_blocks:
-                        # 말이 너무 길다 → 일단 자르고 이어서 계속 녹음
-                        self._emit(seg_blocks, speech_count)
+                        # 말이 너무 길다 → 일단 확정하고 이어서 계속 녹음
+                        self._put_final(seg_blocks, seq)
+                        seq += 1
                         seg_blocks = seg_blocks[-2:]  # 약간 겹치게 남겨 단어 잘림을 줄인다
                         speech_count = 0
                         silence_count = 0
+                        since_partial = 0
+                    elif (self.partial_blocks
+                          and since_partial >= self.partial_blocks
+                          and speech_count >= self.min_speech_blocks):
+                        # 아직 말하는 중 → 지금까지 내용을 부분(partial) 자막으로 전송
+                        self._put_partial(seg_blocks, seq)
+                        since_partial = 0
         except Exception as e:  # 장치 뽑힘 등
             self.error = e
             self.stop_event.set()

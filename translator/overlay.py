@@ -120,10 +120,14 @@ class SubtitleOverlay:
         y = self._screen_h - self.root.winfo_reqheight() - 80
         self.root.geometry(f"+{x}+{y}")
 
-    def _show(self, ja_text, ko_text):
+    def _show(self, ja_text, ko_text, partial=False):
         if self.show_japanese:
             self.ja_label.config(text=ja_text)
-        self.ko_label.config(text=ko_text)
+        # 말하는 중(partial)에는 살짝 어둡게 + ⋯ 표시, 확정되면 밝은 흰색
+        if partial:
+            self.ko_label.config(text=ko_text + " ⋯", fg="#c8cbd4")
+        else:
+            self.ko_label.config(text=ko_text, fg="#ffffff")
         self._last_update = time.monotonic()
         self._reposition()
 
@@ -133,8 +137,8 @@ class SubtitleOverlay:
             return
         try:
             while True:
-                ja, ko = self.ui_queue.get_nowait()
-                self._show(ja, ko)
+                ja, ko, partial = self.ui_queue.get_nowait()
+                self._show(ja, ko, partial)
         except queue.Empty:
             pass
 

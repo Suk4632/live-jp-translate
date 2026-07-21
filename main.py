@@ -41,6 +41,8 @@ def build_parser():
                    help="자막 글자 크기 배율 (예: 1.5)")
     p.add_argument("--vad-threshold", type=float, default=0.01,
                    help="말소리 감지 민감도 (자막이 안 나오면 0.005로 낮춰보세요)")
+    p.add_argument("--partial-interval", type=float, default=1.0,
+                   help="말하는 도중 자막 갱신 주기(초). 0이면 문장이 끝난 뒤에만 표시")
     p.add_argument("--log", type=str, default=None,
                    help="자막을 저장할 파일 경로 (예: --log 방송기록.txt)")
     return p

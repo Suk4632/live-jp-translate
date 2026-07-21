@@ -1,5 +1,7 @@
 """faster-whisper를 이용한 일본어 음성 인식 모듈."""
 
+import os
+
 import numpy as np
 
 # Whisper가 무음/음악 구간에서 자주 지어내는(환각) 문장들 — 자막에서 걸러낸다
@@ -27,6 +29,8 @@ class SpeechRecognizer:
         self.source_lang = source_lang
         self.device = None
 
+        cpu_threads = min(8, os.cpu_count() or 4)
+
         if device in ("auto", "cuda"):
             # 그래픽카드(CUDA)가 있으면 훨씬 빠르다 — 안 되면 CPU로 자동 전환
             try:
@@ -43,7 +47,8 @@ class SpeechRecognizer:
                     )
         if self.device is None:
             self.model = WhisperModel(model_size, device="cpu",
-                                      compute_type="int8")
+                                      compute_type="int8",
+                                      cpu_threads=cpu_threads)
             self.device = "cpu"
             self._warmup(self.model)  # 첫 자막이 빨리 나오도록 미리 예열
 
@@ -63,6 +68,7 @@ class SpeechRecognizer:
             beam_size=1,                      # 속도 우선 (실시간용)
             vad_filter=True,                  # 무음 구간 자동 제거
             condition_on_previous_text=False, # 환각(반복) 방지
+            without_timestamps=True,          # 타임스탬프 생략 → 더 빠름
         )
 
         texts = []
