@@ -1,9 +1,6 @@
-"""방송 화면 위에 항상 떠 있는 자막 오버레이 창 (tkinter).
+"""화면 위에 항상 떠 있는 자막 오버레이(tkinter).
 
-- 화면 아래쪽 가운데에 반투명 검은 배경으로 표시
-- 마우스로 끌어서 위치 이동 가능
-- ESC 키 또는 ✕ 버튼으로 종료
-- 10초 동안 새 자막이 없으면 내용이 지워짐
+드래그로 이동, ESC 또는 우상단 x로 종료. 10초간 새 자막이 없으면 비운다.
 """
 
 import queue
@@ -12,10 +9,10 @@ import tkinter as tk
 import tkinter.font as tkfont
 
 _FONT_CANDIDATES = [
-    "Malgun Gothic",        # Windows 한국어
-    "Apple SD Gothic Neo",  # macOS
+    "Malgun Gothic",
+    "Apple SD Gothic Neo",
     "AppleGothic",
-    "Noto Sans CJK KR",     # Linux
+    "Noto Sans CJK KR",
     "NanumGothic",
 ]
 
@@ -31,8 +28,6 @@ def _pick_font(root):
 
 
 class SubtitleOverlay:
-    """(일본어, 한국어) 자막 쌍을 ui_queue에서 꺼내 화면에 보여준다."""
-
     def __init__(self, ui_queue, stop_event, font_scale=1.0, show_japanese=True):
         self.ui_queue = ui_queue
         self.stop_event = stop_event
@@ -42,10 +37,10 @@ class SubtitleOverlay:
 
         self.root = tk.Tk()
         self.root.title("실시간 번역 자막")
-        self.root.overrideredirect(True)          # 테두리 없는 창
-        self.root.attributes("-topmost", True)    # 항상 위
+        self.root.overrideredirect(True)
+        self.root.attributes("-topmost", True)
         try:
-            self.root.attributes("-alpha", 0.88)  # 반투명
+            self.root.attributes("-alpha", 0.88)
         except tk.TclError:
             pass
         self.root.configure(bg="#101014")
@@ -63,10 +58,11 @@ class SubtitleOverlay:
 
         top = tk.Frame(frame, bg="#101014")
         top.pack(fill="x")
-        tk.Label(top, text="● 일본어 실시간 번역", bg="#101014", fg="#5a5f6e",
+        tk.Label(top, text="일본어 실시간 번역", bg="#101014", fg="#5a5f6e",
                  font=(family, max(8, int(9 * font_scale)))).pack(side="left")
         close = tk.Label(top, text="✕", bg="#101014", fg="#8a8f9e",
-                         font=(family, max(9, int(10 * font_scale))), cursor="hand2")
+                         font=(family, max(9, int(10 * font_scale))),
+                         cursor="hand2")
         close.pack(side="right")
         close.bind("<Button-1>", lambda e: self._close())
 
@@ -78,17 +74,16 @@ class SubtitleOverlay:
 
         self.ko_label = tk.Label(
             frame, text="방송 소리를 기다리는 중...", bg="#101014", fg="#ffffff",
-            font=(family, ko_size, "bold"), wraplength=self._wrap, justify="center")
+            font=(family, ko_size, "bold"), wraplength=self._wrap,
+            justify="center")
         self.ko_label.pack(fill="x", pady=(2, 2))
 
-        # 마우스로 끌어서 이동
         for widget in (self.root, frame, self.ja_label, self.ko_label):
             widget.bind("<Button-1>", self._drag_start)
             widget.bind("<B1-Motion>", self._drag_move)
         self.root.bind("<Escape>", lambda e: self._close())
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
-        # 처음 위치: 화면 아래쪽 가운데
         self.root.update_idletasks()
         x = (screen_w - self.root.winfo_reqwidth()) // 2
         y = screen_h - self.root.winfo_reqheight() - 80
@@ -97,7 +92,6 @@ class SubtitleOverlay:
         self._screen_w = screen_w
         self._screen_h = screen_h
 
-        # ESC 키가 바로 먹히도록 창에 키보드 포커스를 준다
         try:
             self.root.focus_force()
         except tk.TclError:
@@ -118,7 +112,7 @@ class SubtitleOverlay:
         self.stop_event.set()
 
     def _reposition(self):
-        """자막 길이가 바뀌어도 아래쪽 가운데를 유지한다 (사용자가 옮겼으면 그대로 둠)."""
+        # 자막 길이가 바뀌어도 하단 중앙 유지 (사용자가 옮겼으면 그대로 둠)
         if self._user_moved:
             return
         self.root.update_idletasks()
@@ -129,9 +123,8 @@ class SubtitleOverlay:
     def _show(self, ja_text, ko_text, partial=False):
         if self.show_japanese:
             self.ja_label.config(text=ja_text)
-        # 말하는 중(partial)에는 살짝 어둡게 + ⋯ 표시, 확정되면 밝은 흰색
         if partial:
-            self.ko_label.config(text=ko_text + " ⋯", fg="#c8cbd4")
+            self.ko_label.config(text=ko_text + " ...", fg="#c8cbd4")
         else:
             self.ko_label.config(text=ko_text, fg="#ffffff")
         self._last_update = time.monotonic()
@@ -148,7 +141,6 @@ class SubtitleOverlay:
         except queue.Empty:
             pass
 
-        # 한동안 조용하면 자막을 지운다
         if (time.monotonic() - self._last_update > _CLEAR_AFTER_SEC
                 and self.ko_label.cget("text")):
             self.ja_label.config(text="")
@@ -158,7 +150,6 @@ class SubtitleOverlay:
         self.root.after(100, self._poll)
 
     def run(self):
-        """메인 스레드에서 호출 — 창이 닫힐 때까지 블록된다."""
         self.root.after(100, self._poll)
         self.root.mainloop()
         self.stop_event.set()
