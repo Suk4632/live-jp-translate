@@ -7,7 +7,12 @@
 """
 
 import argparse
+import os
 import sys
+
+# 모델 다운로드 시 헷갈리는 경고문(심링크/미로그인 안내)이 안 나오게 한다
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
 
 
 def build_parser():
